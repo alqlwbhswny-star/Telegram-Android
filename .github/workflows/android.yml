@@ -37,6 +37,46 @@ jobs:
             "ndk;27.2.12479018" \
             "cmake;3.22.1"
 
+      - name: Configure Telegram API
+        env:
+          TELEGRAM_API_ID: ${{ secrets.TELEGRAM_API_ID }}
+          TELEGRAM_API_HASH: ${{ secrets.TELEGRAM_API_HASH }}
+        run: |
+          python3 - <<'PY'
+          import os
+          import re
+          from pathlib import Path
+
+          api_id = os.environ.get("TELEGRAM_API_ID", "")
+          api_hash = os.environ.get("TELEGRAM_API_HASH", "")
+
+          if not api_id.isdigit() or not api_hash:
+              raise SystemExit("Telegram API secrets are missing or invalid")
+
+          path = Path("TMessagesProj/src/main/java/org/telegram/messenger/BuildVars.java")
+          source = path.read_text()
+
+          source, count_id = re.subn(
+              r'public static int APP_ID = \d+;',
+              f'public static int APP_ID = {api_id};',
+              source,
+              count=1
+          )
+
+          source, count_hash = re.subn(
+              r'public static String APP_HASH = "[^"]*";',
+              'public static String APP_HASH = "' + api_hash + '";',
+              source,
+              count=1
+          )
+
+          if count_id != 1 or count_hash != 1:
+              raise SystemExit("Could not find the expected API settings")
+
+          path.write_text(source)
+          print("Telegram API settings configured successfully")
+          PY
+
       - name: Build standalone APK
         run: |
           chmod +x gradlew
